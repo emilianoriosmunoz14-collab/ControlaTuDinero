@@ -1,0 +1,265 @@
+/* 1. Variables (light and dark theme)*/
+:root {
+  --bg: #f5f7fa;
+  --card: #ffffff;
+  --text: #1d2433;
+  --muted: #667085;
+  --line: #e4e7ec;
+
+  --primary: #0f766e;
+  --primary-h: #0b5d57;
+
+  --danger: #b42318;
+  --danger-bg: #fef3f2;
+
+  --ok: #067647;
+  --ok-bg: #ecfdf3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1420;
+    --card: #171d2b;
+    --text: #e8ecf4;
+    --muted: #9aa4b8;
+    --line: #2a3347;
+
+    --primary: #2dd4bf;
+    --primary-h: #5eead4;
+
+    --danger: #fda29b;
+    --danger-bg: #3a1a18;
+
+    --ok: #6ce9a6;
+    --ok-bg: #10281c;
+  }
+}
+
+
+/* 2. Base */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--text);
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+}
+
+.sub {
+  margin: 0 0 1.25rem;
+  color: var(--muted);
+}
+
+
+/* 3. Layout */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.2rem;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.brand {
+  font-weight: 700;
+  color: var(--text) !important;
+}
+
+main {
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.card {
+  padding: 1.5rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.card.narrow {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.foot {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.foot a {
+  color: var(--primary);
+}
+
+
+/* 4. Forms */
+.field {
+  margin-bottom: 1rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-weight: 600;
+}
+
+input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.error {
+  min-height: 1.1em;
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--danger);
+}
+
+
+/* 5. Buttons */
+.btn {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  font: inherit;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--primary);
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: var(--primary-h);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+
+/* 6. Alerts */
+.alert {
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.95rem;
+  border-radius: 8px;
+}
+
+.alert.error-box {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.alert.ok-box {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.alert[hidden] {
+  display: none;
+}
+
+
+/* 7. History Table */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.7rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+th {
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+th.num,
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.gasto {
+  color: var(--danger);
+}
+
+.ingreso {
+  color: var(--ok);
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+
+/* 8. Empty State */
+.empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.empty strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.empty a {
+  font-weight: 600;
+  color: var(--primary);
+}
