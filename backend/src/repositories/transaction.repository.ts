@@ -30,4 +30,42 @@ export async function listTransactionsByUser(userId: number) {
     categoryId: row.categoryId,
     categoryName: row.categoryName,
   }));
+
+  function toDto(row: TransactionRow) {
+  return {
+    id: row.id,
+    type: row.type,
+    amount: row.amount,
+    date: row.date,
+    description: row.description,
+    categoryId: row.categoryId,
+    categoryName: row.categoryName,
+  };
+}
+
+export async function createTransaction(data: {
+  userId: number;
+  categoryId: number;
+  type: 'income' | 'expense';
+  amount: string;
+  date: string;
+  description: string | null;
+  }) {
+
+  const [result] = await pool.execute<ResultSetHeader>(
+    `INSERT INTO transactions (user_id, category_id, type, amount, date, description)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [data.userId, data.categoryId, data.type, data.amount, data.date, data.description]
+  );
+  
+  const [rows] = await pool.execute<TransactionRow[]>(`
+    SELECT t.id, t.type, t.amount, t.date, t.description,
+           c.id AS categoryId, c.name AS categoryName
+    FROM transactions t
+    INNER JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
+    WHERE t.id = ? AND t.user_id = ?
+  `, [result.insertId, data.userId]);
+  return toDto(rows[0]);
+}
+
 }

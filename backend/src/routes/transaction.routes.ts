@@ -4,4 +4,4 @@ import { requireAuth } from '../middlewares/requireAuth.js';
 
 export const transactionRouter = Router();
 transactionRouter.get('/', requireAuth, getHistory);
-// Emiliano añadirá POST / (registrar gasto) con sus validaciones.
+transactionRouter.post('/', requireAuth, createExpense);
