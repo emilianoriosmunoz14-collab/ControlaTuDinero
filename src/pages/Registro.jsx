@@ -29,11 +29,13 @@ export default function Registro() {
     setAlerta(null);
 
     // Field names of the contract with the backend (César). Ajustar aquí si cambian.
+
     const payload = {
-      nombre: valores.nombre.trim(),
-      correo: valores.correo.trim().toLowerCase(),
+      name: valores.nombre.trim(),
+      email: valores.correo.trim().toLowerCase(),
       password: valores.password,
     };
+
     const errs = validar(payload);
     setErrores(errs);
     if (Object.keys(errs).length) return;

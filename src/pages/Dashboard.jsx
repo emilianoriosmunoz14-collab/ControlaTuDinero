@@ -1,46 +1,74 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { apiFetch } from '../api.js';
+import { CONFIG } from '../config.js';
 import '../App.css';
 
-const initialExpenses = [
-  { id: 1, name: 'Comida', category: 'Alimentación', date: '2026-10-27', amount: 185 },
-  { id: 2, name: 'Transporte', category: 'Transporte', date: '2026-10-26', amount: 90 },
-  { id: 3, name: 'Material escolar', category: 'Educación', date: '2026-10-24', amount: 320 },
-];
-
 function App() {
+
   const [loggedIn, setLoggedIn] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [expenses, setExpenses] = useState(initialExpenses);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [expenses, setExpenses] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [expenseName, setExpenseName] = useState('');
-  const [category, setCategory] = useState('Alimentación');
+  const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
-  const [date, setDate] = useState('2026-10-28');
+  const [date, setDate] = useState(
+    new Date().toLocaleDateString('en-CA')
+  );
   const [formMessage, setFormMessage] = useState('');
+  const [savingExpense, setSavingExpense] = useState(false);
+
 
   const totalExpenses = expenses.reduce(
     (total, expense) => total + expense.amount,
     0
   );
 
-  const handleLogin = (event) => {
-    event.preventDefault();
 
-    if (!email.trim() || !password.trim()) {
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    setLoginError('');
+
+    if (!email.trim() || !password) {
       setLoginError('Escribe tu correo y contraseña para continuar.');
       return;
     }
 
-    // Inicio de sesión de demostración. Después se conectará con el backend.
-    setLoginError('');
-    setLoggedIn(true);
+    setLoginLoading(true);
+
+    try {
+      await apiFetch(CONFIG.ENDPOINTS.login, {
+        method: 'POST',
+        body: {
+          email: email.trim().toLowerCase(),
+          password,
+        },
+      });
+
+      setLoggedIn(true);
+      setPassword('');
+    } catch (err) {
+      setLoginError(
+        err.status === 401
+          ? 'Correo o contraseña incorrectos.'
+          : err.message
+      );
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
-  const handleAddExpense = (event) => {
+  const handleAddExpense = async (event) => {
     event.preventDefault();
+    setFormMessage('');
 
     const numericAmount = Number(amount);
+    const selectedCategory = categories.find(
+      (item) => String(item.id) === String(category)
+    );
 
     if (!expenseName.trim() || !date || !category) {
       setFormMessage('Completa todos los campos para registrar el gasto.');
@@ -52,21 +80,112 @@ function App() {
       return;
     }
 
-    const newExpense = {
-      id: Date.now(),
-      name: expenseName.trim(),
-      category,
-      date,
-      amount: numericAmount,
-    };
+    if (!selectedCategory) {
+      setFormMessage('Selecciona una categoría válida.');
+      return;
+    }
 
-    setExpenses((currentExpenses) => [newExpense, ...currentExpenses]);
-    setExpenseName('');
-    setCategory('Alimentación');
-    setAmount('');
-    setDate('2026-10-28');
-    setFormMessage('¡Gasto registrado correctamente!');
+    setSavingExpense(true);
+
+    try {
+      await apiFetch(CONFIG.ENDPOINTS.transactions, {
+        method: 'POST',
+        body: {
+          type: 'expense',
+          amount: numericAmount,
+          date,
+          description: expenseName.trim(),
+          categoryId: Number(category),
+        },
+      });
+
+      const respuesta = await apiFetch(CONFIG.ENDPOINTS.transactions);
+      const lista = respuesta.transactions ?? [];
+
+      setExpenses(
+        lista.map((item) => ({
+          id: item.id,
+          name: item.description,
+          category: item.categoryName,
+          date: String(item.date).slice(0, 10),
+          amount: Number(item.amount),
+        }))
+      );
+
+      setExpenseName('');
+      setCategory('');
+      setAmount('');
+      setDate(new Date().toLocaleDateString('en-CA'));
+      setFormMessage('¡Gasto registrado correctamente!');
+    } catch (err) {
+      if (err.status === 401) {
+        setLoggedIn(false);
+        setLoginError('Tu sesión venció. Inicia sesión nuevamente.');
+      } else {
+        setFormMessage(err.message);
+      }
+    } finally {
+      setSavingExpense(false);
+    }
   };
+
+  useEffect(() => {
+    if (!loggedIn) return;
+
+    let activo = true;
+
+    async function cargarDatos() {
+      try {
+        const [respuestaCategorias, respuestaGastos] = await Promise.all([
+          apiFetch(CONFIG.ENDPOINTS.categories),
+          apiFetch(CONFIG.ENDPOINTS.transactions),
+        ]);
+
+        if (!activo) return;
+
+        const categoriasGasto = (
+          respuestaCategorias.categories ?? []
+        ).filter((item) => item.type === 'expense');
+
+        setCategories(categoriasGasto);
+
+        setExpenses(
+          (respuestaGastos.transactions ?? []).map((item) => ({
+            id: item.id,
+            name: item.description,
+            category: item.categoryName,
+            date: String(item.date).slice(0, 10),
+            amount: Number(item.amount),
+          }))
+        );
+
+        setCategory((actual) => {
+          const existe = categoriasGasto.some(
+            (item) => String(item.id) === String(actual)
+          );
+
+          return existe
+            ? actual
+            : String(categoriasGasto[0]?.id ?? '');
+        });
+      } catch (err) {
+        if (!activo) return;
+
+        if (err.status === 401) {
+          setLoggedIn(false);
+          setLoginError('Tu sesión venció. Inicia sesión nuevamente.');
+        } else {
+          setFormMessage(err.message);
+        }
+      }
+    }
+
+    cargarDatos();
+
+    return () => {
+      activo = false;
+    };
+  }, [loggedIn]);
 
   if (!loggedIn) {
     return (
@@ -133,16 +252,18 @@ function App() {
 
               {loginError && <p className="error-message">{loginError}</p>}
 
-              <button className="primary-button login-button" type="submit">
-                Iniciar sesión <span>→</span>
+              <button
+                className="primary-button login-button"
+                type="submit"
+                disabled={loginLoading}
+              >
+                {loginLoading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+                {!loginLoading && <span> →</span>}
               </button>
             </form>
 
             <p className="login-note">
               <span>✦</span> Tu organización financiera comienza aquí.
-            </p>
-            <p className="demo-note">
-              Vista de demostración: acepta cualquier correo y contraseña no vacíos.
             </p>
           </div>
         </section>
@@ -186,7 +307,19 @@ function App() {
           <button
             className="nav-item logout-button"
             type="button"
-            onClick={() => setLoggedIn(false)}
+            onClick={async () => {
+              try {
+                await apiFetch(CONFIG.ENDPOINTS.logout, {
+                  method: 'POST',
+                });
+              } catch (err) {
+                console.error('No se pudo cerrar la sesión en el servidor:', err);
+              } finally {
+                setLoggedIn(false);
+                setExpenses([]);
+                setCategories([]);
+              }
+            }}
           >
             <span>↩</span> Cerrar sesión
           </button>
@@ -282,14 +415,15 @@ function App() {
                     id="expense-category"
                     value={category}
                     onChange={(event) => setCategory(event.target.value)}
+                    required
                   >
-                    <option>Alimentación</option>
-                    <option>Transporte</option>
-                    <option>Educación</option>
-                    <option>Salud</option>
-                    <option>Entretenimiento</option>
-                    <option>Servicios</option>
-                    <option>Otros</option>
+                    <option value="">Selecciona una categoría</option>
+
+                    {categories.map((item) => (
+                      <option key={item.id} value={String(item.id)}>
+                        {item.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -326,8 +460,13 @@ function App() {
                 </p>
               )}
 
-              <button className="primary-button" type="submit">
-                <span>＋</span> Guardar gasto
+              <button
+                className="primary-button"
+                type="submit"
+                disabled={savingExpense}
+              >
+                <span>＋</span>
+                {savingExpense ? 'Guardando...' : 'Guardar gasto'}
               </button>
             </form>
           </article>
