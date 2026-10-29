@@ -1,3 +1,4 @@
+
 import { CONFIG } from './config.js';
 
 export class ApiError extends Error {
@@ -8,30 +9,44 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch(path, { method = 'GET', body, auth = false } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (auth) {
-    const token = localStorage.getItem(CONFIG.TOKEN_KEY);
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
+export async function apiFetch(path, { method = 'GET', body } = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+  };
 
-  let res;
+  let response;
+
   try {
-    res = await fetch(CONFIG.API_BASE + path, {
+    response = await fetch(CONFIG.API_BASE + path, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'include',
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new ApiError(0, 'No se pudo conectar con el servidor. Intenta de nuevo.');
+    throw new ApiError(
+      0,
+      'No se pudo conectar con el servidor. Comprueba que el backend esté iniciado.'
+    );
   }
 
   let data = null;
-  try { data = await res.json(); } catch { /* respuesta sin cuerpo */ }
 
-  if (!res.ok) {
-    const msg = (data && (data.mensaje || data.message || data.error)) || 'Ocurrió un error inesperado.';
-    throw new ApiError(res.status, msg, data);
+  try {
+    data = await response.json();
+  } catch {
+    // Algunas respuestas pueden venir sin contenido JSON.
   }
+
+  if (!response.ok) {
+    const message =
+      data?.message ||
+      data?.mensaje ||
+      data?.error ||
+      'Ocurrió un error inesperado.';
+
+    throw new ApiError(response.status, message, data);
+  }
+
   return data;
 }

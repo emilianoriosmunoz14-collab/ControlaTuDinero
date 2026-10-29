@@ -1,11 +1,19 @@
-// Shared configuration. API_BASE empty = same origin (Vite's proxy forwards /api).
+
 export const CONFIG = {
   API_BASE: '',
-  // It must match the key that the Ketzary login keeps.
-  TOKEN_KEY: 'token',
+
   ENDPOINTS: {
     register: '/api/auth/register',
+    login: '/api/auth/login',
+    logout: '/api/auth/logout',
+    categories: '/api/categories',
     transactions: '/api/transactions',
   },
-  ROUTES: { login: '/login', historial: '/historial', gasto: '/gasto' },
+
+  ROUTES: {
+    login: '/login',
+    registro: '/registro',
+    historial: '/historial',
+    gasto: '/gasto',
+  },
 };
