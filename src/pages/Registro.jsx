@@ -36,7 +36,11 @@ export default function Registro() {
       password: valores.password,
     };
 
-    const errs = validar(payload);
+    const errs = validar({
+      nombre: payload.name,
+      correo: payload.email,
+      password: payload.password,
+    });
     setErrores(errs);
     if (Object.keys(errs).length) return;
 
