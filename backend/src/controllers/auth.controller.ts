@@ -16,7 +16,7 @@ const loginSchema = z.object({
   email: z.string().trim().email().max(190),
   password: z.string().min(1).max(200),
 });
-
+// contra hard coded
 const DUMMY_HASH = '$2b$12$2KoXpiRbQ.YdOEJEk3LeL.X.xnS./9iYiLncCoXEWDGzULrWdcine';
 const LOGIN_ERROR = 'Correo o contraseña incorrectos';
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -66,7 +66,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     res.status(401).json({ message: LOGIN_ERROR });
     return;
   }
-
+  //usar jwt
   const token = randomBytes(32).toString('hex');
   await createSession(user.id, sha256(token), SESSION_HOURS);
   res.cookie(SESSION_COOKIE, token, {
