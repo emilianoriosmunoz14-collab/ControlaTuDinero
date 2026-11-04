@@ -6,7 +6,7 @@ import { type RowDataPacket } from 'mysql2';
 import { app } from '../src/app.js';
 import { pool } from '../src/db/pool.js';
 
-const PASSWORD = 'UnaClaveSegura123!';
+const PASSWORD = 'f1fbb5bb154e06ff0da90677453abfaf3df35384e8702376';
 const createdUsers: number[] = [];
 
 let userA: { id: number; email: string };

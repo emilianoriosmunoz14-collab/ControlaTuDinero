@@ -6,7 +6,7 @@ interface CategoryRow extends RowDataPacket {
   name: string;
   type: 'income' | 'expense';
 }
-
+// contratos con interfaces
 export async function listCategories(userId: number) {
   const [rows] = await pool.execute<CategoryRow[]>(
     'SELECT id, name, type FROM categories WHERE user_id = ? ORDER BY type, name',
