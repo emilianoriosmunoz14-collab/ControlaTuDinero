@@ -1,4 +1,4 @@
-﻿import { type ResultSetHeader, type RowDataPacket } from 'mysql2';
+import { type ResultSetHeader, type RowDataPacket } from 'mysql2';
 import { pool } from '../db/pool.js';
 
 interface TransactionRow extends RowDataPacket {
@@ -23,11 +23,12 @@ function toDto(row: TransactionRow) {
   };
 }
 
+// categories ya no tiene user_id. La propiedad del movimiento se valida con t.user_id.
 const transactionSelect = `
   SELECT t.id, t.type, t.amount, t.date, t.description,
          c.id AS categoryId, c.name AS categoryName
   FROM transactions t
-  INNER JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
+  INNER JOIN categories c ON c.id = t.category_id
 `;
 
 export async function listTransactionsByUser(userId: number) {
@@ -38,6 +39,8 @@ export async function listTransactionsByUser(userId: number) {
   return rows.map(toDto);
 }
 
+// Compatibilidad temporal: PR 4 añadira accountId y subcategoryId obligatorios,
+// y actualizara el saldo dentro de la misma transaccion MySQL.
 export async function createTransaction(data: {
   userId: number;
   categoryId: number;
@@ -56,9 +59,6 @@ export async function createTransaction(data: {
     `${transactionSelect} WHERE t.id = ? AND t.user_id = ? LIMIT 1`,
     [result.insertId, data.userId],
   );
-
-  if (!rows[0]) {
-    throw new Error('No se pudo recuperar el gasto recién registrado.');
-  }
+  if (!rows[0]) throw new Error('No se pudo recuperar el gasto recien registrado.');
   return toDto(rows[0]);
 }
