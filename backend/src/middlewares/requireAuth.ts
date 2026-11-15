@@ -1,26 +1,32 @@
-import { createHash } from 'node:crypto';
 import { type NextFunction, type Request, type Response } from 'express';
 import { type RowDataPacket } from 'mysql2';
 import { pool } from '../db/pool.js';
-
-interface SessionRow extends RowDataPacket { userId: number }
+import { SESSION_COOKIE } from '../config/session.js';
+import { hashToken, verifySessionToken } from '../services/token.service.js';
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const rawToken: unknown = req.cookies?.ctd_session;
-  if (typeof rawToken !== 'string' || !/^[a-f0-9]{64}$/.test(rawToken)) {
+  const token: unknown = req.cookies?.[SESSION_COOKIE];
+  if (typeof token !== 'string' || token.length === 0) {
     res.status(401).json({ message: 'Debes iniciar sesión' });
     return;
   }
-  const hash = createHash('sha256').update(rawToken).digest('hex');
-  const [sessions] = await pool.execute<SessionRow[]>(`
-    SELECT user_id AS userId FROM sessions
-    WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > NOW()
-    LIMIT 1
-  `, [hash]);
-  if (sessions.length === 0) {
+
+  const userId = verifySessionToken(token);
+  if (userId === null) {
     res.status(401).json({ message: 'Sesión no válida o expirada' });
     return;
   }
-  req.authUserId = sessions[0].userId;
+
+  const [rows] = await pool.execute<RowDataPacket[]>(`
+    SELECT id FROM sessions
+    WHERE token_hash = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > NOW()
+    LIMIT 1
+  `, [hashToken(token), userId]);
+  if (rows.length === 0) {
+    res.status(401).json({ message: 'Sesión no válida o expirada' });
+    return;
+  }
+
+  req.authUserId = userId;
   next();
 }

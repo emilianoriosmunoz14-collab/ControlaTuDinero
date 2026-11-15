@@ -1,10 +1,11 @@
-﻿import { createHash, randomBytes } from 'node:crypto';
+﻿import { randomBytes } from 'node:crypto';
 import { type Request, type Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { createUserWithCategories, findUserByEmail } from '../repositories/user.repository.js';
+import { createUserWithCategories, findUserByEmail, findUserById } from '../repositories/user.repository.js';
 import { createSession, revokeSession } from '../repositories/session.repository.js';
 import { SESSION_COOKIE, SESSION_HOURS, sessionCookieOptions } from '../config/session.js';
+import { hashToken, signSessionToken } from '../services/token.service.js';
 
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -19,7 +20,6 @@ const loginSchema = z.object({
 
 const DUMMY_HASH = bcrypt.hashSync(randomBytes(24).toString('hex'), 12);
 const LOGIN_ERROR = 'Correo o contraseña incorrectos';
-const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
 export async function register(req: Request, res: Response): Promise<void> {
   const validation = registerSchema.safeParse(req.body);
@@ -67,8 +67,8 @@ export async function login(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const token = randomBytes(32).toString('hex');
-  await createSession(user.id, sha256(token), SESSION_HOURS);
+  const token = signSessionToken(user.id);
+  await createSession(user.id, hashToken(token), SESSION_HOURS);
   res.cookie(SESSION_COOKIE, token, {
     ...sessionCookieOptions,
     maxAge: SESSION_HOURS * 60 * 60 * 1000,
@@ -80,10 +80,18 @@ export async function login(req: Request, res: Response): Promise<void> {
 }
 
 export async function logout(req: Request, res: Response): Promise<void> {
-  const token: unknown = req.cookies?.[SESSION_COOKIE];
-  if (typeof token === 'string' && /^[a-f0-9]{64}$/.test(token)) {
-    await revokeSession(sha256(token));
-  }
+  const token = req.cookies[SESSION_COOKIE] as string;
+  await revokeSession(hashToken(token));
   res.clearCookie(SESSION_COOKIE, sessionCookieOptions);
   res.status(200).json({ message: 'Sesión cerrada' });
+}
+
+export async function me(req: Request, res: Response): Promise<void> {
+  const user = await findUserById(req.authUserId!);
+  if (!user) {
+    res.status(401).json({ message: 'Sesión no válida o expirada' });
+    return;
+  }
+  res.set('Cache-Control', 'no-store');
+  res.status(200).json({ user });
 }

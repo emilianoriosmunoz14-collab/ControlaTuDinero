@@ -1,6 +1,6 @@
 ﻿import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
-import { login, logout, register } from '../controllers/auth.controller.js';
+import { login, logout, me, register } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
 
 export const authRouter = Router();
@@ -24,3 +24,4 @@ const loginLimit = rateLimit({
 authRouter.post('/register', registerLimit, register);
 authRouter.post('/login', loginLimit, login);
 authRouter.post('/logout', requireAuth, logout);
+authRouter.get('/me', requireAuth, me);

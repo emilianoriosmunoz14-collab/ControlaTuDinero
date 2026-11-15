@@ -67,7 +67,7 @@ test('login correcto: 200, cookie httpOnly y solo se guarda el hash del token', 
   assert.equal(result.body.user.password_hash, undefined);
 
   const cookie = (result.headers['set-cookie'] as unknown as string[])[0];
-  assert.match(cookie, /^ctd_session=[a-f0-9]{64};/);
+  assert.match(cookie, /^ctd_session=[\w-]+\.[\w-]+\.[\w-]+;/);
   assert.match(cookie, /HttpOnly/i);
   assert.match(cookie, /SameSite=Lax/i);
 
