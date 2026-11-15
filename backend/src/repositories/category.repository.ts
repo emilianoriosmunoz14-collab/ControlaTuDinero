@@ -1,24 +1,29 @@
 import { type RowDataPacket } from 'mysql2';
 import { pool } from '../db/pool.js';
+import { type CategoryDTO } from '../contracts/category.contract.js';
 
-interface CategoryRow extends RowDataPacket {
-  id: number;
-  name: string;
-  type: 'income' | 'expense';
+type CategoryRow = RowDataPacket & CategoryDTO;
+
+function toCategoryDTO(row: CategoryRow): CategoryDTO {
+  return { id: row.id, name: row.name, type: row.type };
 }
 
-export async function listCategories(userId: number) {
+// El argumento queda por compatibilidad con el controlador actual.
+// A partir del Sprint 3 las categorias son compartidas.
+export async function listCategories(_userId: number): Promise<CategoryDTO[]> {
   const [rows] = await pool.execute<CategoryRow[]>(
-    'SELECT id, name, type FROM categories WHERE user_id = ? ORDER BY type, name',
-    [userId]
+    'SELECT id, name, type FROM categories ORDER BY type, name'
   );
-  return rows.map(row => ({ id: row.id, name: row.name, type: row.type }));
+  return rows.map(toCategoryDTO);
 }
 
-export async function findCategoryOfUser(userId: number, categoryId: number) {
+// El primer argumento queda por compatibilidad con transaction.controller.ts.
+export async function findCategoryOfUser(
+  _userId: number, categoryId: number
+): Promise<CategoryDTO | null> {
   const [rows] = await pool.execute<CategoryRow[]>(
-    'SELECT id, name, type FROM categories WHERE id = ? AND user_id = ? LIMIT 1',
-    [categoryId, userId]
+    'SELECT id, name, type FROM categories WHERE id = ? LIMIT 1',
+    [categoryId]
   );
-  return rows[0] ? { id: rows[0].id, name: rows[0].name, type: rows[0].type } : null;
+  return rows[0] ? toCategoryDTO(rows[0]) : null;
 }

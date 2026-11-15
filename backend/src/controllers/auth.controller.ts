@@ -1,4 +1,4 @@
-﻿import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { type Request, type Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -66,7 +66,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     res.status(401).json({ message: LOGIN_ERROR });
     return;
   }
-
+  //usar jwt
   const token = randomBytes(32).toString('hex');
   await createSession(user.id, sha256(token), SESSION_HOURS);
   res.cookie(SESSION_COOKIE, token, {

@@ -4,7 +4,7 @@ import { type RowDataPacket } from 'mysql2';
 import { pool } from '../db/pool.js';
 
 interface SessionRow extends RowDataPacket { userId: number }
-
+//logica duplicada
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const rawToken: unknown = req.cookies?.ctd_session;
   if (typeof rawToken !== 'string' || !/^[a-f0-9]{64}$/.test(rawToken)) {
