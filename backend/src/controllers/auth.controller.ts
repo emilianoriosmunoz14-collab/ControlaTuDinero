@@ -1,4 +1,4 @@
-﻿import { randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { type Request, type Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
