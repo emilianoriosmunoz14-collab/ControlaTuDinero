@@ -17,7 +17,7 @@ const loginSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
-const DUMMY_HASH = '$2b$12$2KoXpiRbQ.YdOEJEk3LeL.X.xnS./9iYiLncCoXEWDGzULrWdcine';
+const DUMMY_HASH = bcrypt.hashSync(randomBytes(24).toString('hex'), 12);
 const LOGIN_ERROR = 'Correo o contraseña incorrectos';
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
