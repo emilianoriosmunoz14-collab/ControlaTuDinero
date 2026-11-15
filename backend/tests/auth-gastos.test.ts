@@ -1,12 +1,13 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { type RowDataPacket } from 'mysql2';
 import { app } from '../src/app.js';
 import { pool } from '../src/db/pool.js';
 
-const PASSWORD = 'f1fbb5bb154e06ff0da90677453abfaf3df35384e8702376';
+const randomPassword = () => `Aa1!${randomBytes(12).toString('hex')}`;
+const PASSWORD = randomPassword();
 const createdUsers: number[] = [];
 let userA: { id: number; email: string };
 let userB: { id: number; email: string };
@@ -76,7 +77,7 @@ test('login correcto: 200, cookie httpOnly y hash del token', async () => {
 });
 test('login invalido: contraseña o correo incorrectos dan 401 igual', async () => {
   const badPassword = await request(app).post('/api/auth/login')
-    .send({ email: userA.email, password: 'OtraClave000!' });
+    .send({ email: userA.email, password: randomPassword() });
   const unknownEmail = await request(app).post('/api/auth/login')
     .send({ email: `nadie-${randomUUID()}@example.com`, password: PASSWORD });
   assert.equal(badPassword.status, 401);
@@ -171,7 +172,7 @@ test('limite de intentos: termina en 429', async () => {
   let blocked = false;
   for (let i = 0; i < 15 && !blocked; i++) {
     const result = await request(app).post('/api/auth/login')
-      .send({ email: userA.email, password: `incorrecta-${i}` });
+      .send({ email: userA.email, password: randomPassword() });
     blocked = result.status === 429;
   }
   assert.ok(blocked);

@@ -1,12 +1,13 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { type RowDataPacket } from 'mysql2';
 import { app } from '../src/app.js';
 import { pool } from '../src/db/pool.js';
 
 const createdUsers: number[] = [];
+const randomPassword = () => `Aa1!${randomBytes(12).toString('hex')}`;
 
 before(async () => {
   const [rows] = await pool.query<(RowDataPacket & { db: string })[]>('SELECT DATABASE() AS db');
@@ -28,21 +29,20 @@ after(async () => {
 
 async function createUser() {
   const email = `test-${randomUUID()}@example.com`;
+  const password = randomPassword();
   const result = await request(app).post('/api/auth/register').send({
-    name: 'Prueba Sprint', email, password: 'UnaClaveSegura123!'
+    name: 'Prueba Sprint', email, password
   });
   assert.equal(result.status, 201, JSON.stringify(result.body));
   const id: number = result.body.user.id;
   createdUsers.push(id);
-  return { id, email };
+  return { id, email, password };
 }
 
-async function sessionCookie(userId: number) {
-  const token = randomBytes(32).toString('hex');
-  const tokenHash = createHash('sha256').update(token).digest('hex');
-  await pool.execute(`INSERT INTO sessions (user_id, token_hash, expires_at)
-    VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 8 HOUR))`, [userId, tokenHash]);
-  return `ctd_session=${token}`;
+async function loginCookie(email: string, password: string) {
+  const result = await request(app).post('/api/auth/login').send({ email, password });
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  return (result.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
 }
 
 test('registro invalido responde 400', async () => {
@@ -59,7 +59,7 @@ test('registro de usuario y catalogo general / correo duplicado', async () => {
   );
   assert.ok(categories.length >= 2);
   const duplicated = await request(app).post('/api/auth/register').send({
-    name: 'Duplicado', email: user.email, password: 'UnaClaveSegura123!'
+    name: 'Duplicado', email: user.email, password: randomPassword()
   });
   assert.equal(duplicated.status, 409);
 });
@@ -81,10 +81,10 @@ test('historial privado; categorias compartidas entre usuarios', async () => {
     VALUES (?, ?, 'expense', ?, '2026-10-27', ?)`,
     [a.id, catId, '20.50', 'Gasto de usuario A']);
   await pool.execute(`INSERT INTO transactions
-    (user_id, category_id, type, amount, date, description)
-    VALUES (?, ?, 'expense', ?, '2026-10-27', ?)`,
-    [b.id, catId, '99.50', 'Gasto privado B']);
-  const cookie = await sessionCookie(a.id);
+      (user_id, category_id, type, amount, date, description) VALUES (?, ?, 'expense', ?, '2026-10-27', ?)`,
+    [b.id, catB[0].id, '99.50', 'Gasto privado B']);
+
+  const cookie = await loginCookie(a.email, a.password);
   const result = await request(app).get('/api/transactions').set('Cookie', cookie);
   assert.equal(result.status, 200);
   assert.equal(result.body.transactions.length, 1);

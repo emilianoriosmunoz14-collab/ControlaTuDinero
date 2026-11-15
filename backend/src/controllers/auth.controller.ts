@@ -1,4 +1,4 @@
-﻿import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { type Request, type Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -16,8 +16,8 @@ const loginSchema = z.object({
   email: z.string().trim().email().max(190),
   password: z.string().min(1).max(200),
 });
-// contra hard coded
-const DUMMY_HASH = '$2b$12$2KoXpiRbQ.YdOEJEk3LeL.X.xnS./9iYiLncCoXEWDGzULrWdcine';
+
+const DUMMY_HASH = bcrypt.hashSync(randomBytes(24).toString('hex'), 12);
 const LOGIN_ERROR = 'Correo o contraseña incorrectos';
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
