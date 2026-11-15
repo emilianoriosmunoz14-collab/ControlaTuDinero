@@ -62,7 +62,7 @@ test('login correcto: 200, cookie httpOnly y hash del token', async () => {
   assert.equal(result.body.user.id, userA.id);
   assert.equal(result.body.user.passwordHash, undefined);
   const cookie = (result.headers['set-cookie'] as unknown as string[])[0];
-  assert.match(cookie, /^ctd_session=[a-f0-9]{64};/);
+  assert.match(cookie, /^ctd_session=[\w-]+\.[\w-]+\.[\w-]+;/);
   assert.match(cookie, /HttpOnly/i);
   assert.match(cookie, /SameSite=Lax/i);
   const token = cookie.split(';')[0].split('=')[1];

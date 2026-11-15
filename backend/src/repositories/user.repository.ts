@@ -26,3 +26,11 @@ export async function findUserByEmail(email: string): Promise<
   );
   return rows[0] ?? null;
 }
+
+export async function findUserById(id: number): Promise<BasicUser | null> {
+  const [rows] = await pool.execute<(RowDataPacket & BasicUser)[]>(
+    'SELECT id, name, email FROM users WHERE id = ? LIMIT 1',
+    [id]
+  );
+  return rows[0] ? { id: rows[0].id, name: rows[0].name, email: rows[0].email } : null;
+}
