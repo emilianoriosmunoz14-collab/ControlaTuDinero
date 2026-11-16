@@ -9,6 +9,7 @@ import { categoryRouter } from './routes/category.routes.js';
 import { accountRouter } from './routes/account.routes.js';
 import { subcategoryRouter } from './routes/subcategory.routes.js';
 import { errorHandler } from './middlewares/errorHandler.js';
+import { goalRouter } from './routes/goal.routes.js';
 
 export const app = express();
 app.disable('x-powered-by');
@@ -35,5 +36,6 @@ app.use('/api/transactions', transactionRouter);
 app.use('/api/categories', categoryRouter);
 app.use('/api/accounts', accountRouter);
 app.use('/api/subcategories', subcategoryRouter);
+app.use('/api/goals', goalRouter);
 app.use((_req, res) => { res.status(404).json({ message: 'Ruta no encontrada' }); });
 app.use(errorHandler);

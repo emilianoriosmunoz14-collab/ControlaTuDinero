@@ -82,7 +82,7 @@ test('historial privado; categorias compartidas entre usuarios', async () => {
     [a.id, catId, '20.50', 'Gasto de usuario A']);
   await pool.execute(`INSERT INTO transactions
       (user_id, category_id, type, amount, date, description) VALUES (?, ?, 'expense', ?, '2026-10-27', ?)`,
-    [b.id, catB[0].id, '99.50', 'Gasto privado B']);
+    [b.id, catId, '99.50', 'Gasto privado B']);
 
   const cookie = await loginCookie(a.email, a.password);
   const result = await request(app).get('/api/transactions').set('Cookie', cookie);
