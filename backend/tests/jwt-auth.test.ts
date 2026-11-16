@@ -49,14 +49,10 @@ before(async () => {
   userB = await createUser();
 });
 after(async () => {
-  try {
-    for (const userId of createdUsers) {
-      await pool.execute('DELETE FROM transactions WHERE user_id = ?', [userId]);
-      await pool.execute('DELETE FROM sessions WHERE user_id = ?', [userId]);
-      await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
-    }
-  } finally {
-    await pool.end();
+  for (const userId of createdUsers) {
+    await pool.execute('DELETE FROM transactions WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM sessions WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
   }
 });
 
