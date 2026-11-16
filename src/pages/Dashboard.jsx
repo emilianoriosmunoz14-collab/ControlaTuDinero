@@ -3,6 +3,9 @@ import { apiFetch } from '../api.js';
 import { CONFIG } from '../config.js';
 import '../App.css';
 
+const formatMoney = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+const today = () => new Date().toLocaleDateString('en-CA');
+
 function App() {
 
   const [loggedIn, setLoggedIn] = useState(false);
@@ -10,21 +13,28 @@ function App() {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
-  const [expenses, setExpenses] = useState([]);
+  const [movements, setMovements] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [expenseName, setExpenseName] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState('expense');
+  const [accounts, setAccounts] = useState([]);
+  const [account, setAccount] = useState('');
+  const [subcategories, setSubcategories] = useState([]);
+  const [subcategory, setSubcategory] = useState('');
+  const [newSubcategoryName, setNewSubcategoryName] = useState('');
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(
-    new Date().toLocaleDateString('en-CA')
-  );
+  const [date, setDate] = useState(today);
   const [formMessage, setFormMessage] = useState('');
-  const [savingExpense, setSavingExpense] = useState(false);
-
-
-  const totalExpenses = expenses.reduce(
-    (total, expense) => total + expense.amount,
-    0
+  const [savingMovement, setSavingMovement] = useState(false);
+  const [savingSubcategory, setSavingSubcategory] = useState(false);
+  const busy = savingMovement || savingSubcategory;
+  const categoryOptions = categories.filter(item => item.type === type);
+  const subcategoryOptions = subcategories.filter(item => String(item.categoryId) === category);
+  const selectedAccount = accounts.find(item => String(item.id) === account);
+  const totalExpenses = movements.reduce(
+    (total, movement) => movement.type === 'expense' ? total + Number(movement.amount) : total,
+    0,
   );
 
 
@@ -61,130 +71,121 @@ function App() {
     }
   };
 
-  const handleAddExpense = async (event) => {
+  function resetSession() {
+    setLoggedIn(false);
+    setMovements([]);
+    setCategories([]);
+    setAccounts([]);
+    setSubcategories([]);
+    setType('expense');
+    setAccount('');
+    setCategory('');
+    setSubcategory('');
+    setNewSubcategoryName('');
+    setDescription('');
+    setAmount('');
+    setDate(today());
+    setFormMessage('');
+  }
+
+  function handleFormError(error) {
+    if (error.status === 401) {
+      resetSession();
+      setLoginError('Tu sesión venció. Inicia sesión nuevamente.');
+      return;
+    }
+    setFormMessage(error.message);
+  }
+
+  async function handleAddSubcategory() {
+    if (!category || !newSubcategoryName.trim()) {
+      setFormMessage('Selecciona una categoría y escribe el nombre de la subcategoría.');
+      return;
+    }
+
+    setSavingSubcategory(true);
+    setFormMessage('');
+    try {
+      const result = await apiFetch(CONFIG.ENDPOINTS.subcategories, {
+        method: 'POST',
+        body: { categoryId: Number(category), name: newSubcategoryName.trim() },
+      });
+      setSubcategories(current => [...current, result.subcategory]);
+      setSubcategory(String(result.subcategory.id));
+      setNewSubcategoryName('');
+      setFormMessage('¡Subcategoría creada!');
+    } catch (error) {
+      handleFormError(error);
+    } finally {
+      setSavingSubcategory(false);
+    }
+  }
+
+  async function handleAddMovement(event) {
     event.preventDefault();
+    if (busy) return;
     setFormMessage('');
 
-    const numericAmount = Number(amount);
-    const selectedCategory = categories.find(
-      (item) => String(item.id) === String(category)
-    );
-
-    if (!expenseName.trim() || !date || !category) {
-      setFormMessage('Completa todos los campos para registrar el gasto.');
+    if (!description.trim() || !date || !category || !subcategory || !selectedAccount) {
+      setFormMessage('Completa todos los campos para registrar el movimiento.');
       return;
     }
 
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      setFormMessage('El monto debe ser mayor que $0.00.');
-      return;
-    }
-
-    if (!selectedCategory) {
-      setFormMessage('Selecciona una categoría válida.');
-      return;
-    }
-
-    setSavingExpense(true);
-
+    setSavingMovement(true);
     try {
-      await apiFetch(CONFIG.ENDPOINTS.transactions, {
+      const { transaction, balance } = await apiFetch(CONFIG.ENDPOINTS.transactions, {
         method: 'POST',
         body: {
-          type: 'expense',
-          amount: numericAmount,
-          date,
-          description: expenseName.trim(),
-          categoryId: Number(category),
+          type, amount, date, description: description.trim(),
+          categoryId: Number(category), subcategoryId: Number(subcategory), accountId: selectedAccount.id,
         },
       });
 
-      const respuesta = await apiFetch(CONFIG.ENDPOINTS.transactions);
-      const lista = respuesta.transactions ?? [];
-
-      setExpenses(
-        lista.map((item) => ({
-          id: item.id,
-          name: item.description,
-          category: item.categoryName,
-          date: String(item.date).slice(0, 10),
-          amount: Number(item.amount),
-        }))
-      );
-
-      setExpenseName('');
-      setCategory('');
+      setMovements(current => [transaction, ...current].sort(
+        (a, b) => b.date.localeCompare(a.date) || b.id - a.id,
+      ));
+      setAccounts(current => current.map(item =>
+        item.id === transaction.accountId ? { ...item, balance } : item,
+      ));
+      setDescription('');
       setAmount('');
-      setDate(new Date().toLocaleDateString('en-CA'));
-      setFormMessage('¡Gasto registrado correctamente!');
-    } catch (err) {
-      if (err.status === 401) {
-        setLoggedIn(false);
-        setLoginError('Tu sesión venció. Inicia sesión nuevamente.');
-      } else {
-        setFormMessage(err.message);
-      }
+      setDate(today());
+      setFormMessage(`¡${type === 'income' ? 'Ingreso' : 'Gasto'} registrado! Saldo de ${transaction.accountName}: ${formatMoney.format(balance)}.`);
+    } catch (error) {
+      handleFormError(error);
     } finally {
-      setSavingExpense(false);
+      setSavingMovement(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    let active = true;
+    apiFetch(CONFIG.ENDPOINTS.me).then(() => {
+      if (active) setLoggedIn(true);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!loggedIn) return;
 
-    let activo = true;
+    let active = true;
+    Promise.all([
+      apiFetch(CONFIG.ENDPOINTS.categories),
+      apiFetch(CONFIG.ENDPOINTS.transactions),
+      apiFetch(CONFIG.ENDPOINTS.accounts),
+      apiFetch(CONFIG.ENDPOINTS.subcategories),
+    ]).then(([categoryData, transactionData, accountData, subcategoryData]) => {
+      if (!active) return;
+      setCategories(categoryData.categories);
+      setMovements(transactionData.transactions);
+      setAccounts(accountData.accounts);
+      setSubcategories(subcategoryData.subcategories);
+    }).catch(error => {
+      if (active) handleFormError(error);
+    });
 
-    async function cargarDatos() {
-      try {
-        const [respuestaCategorias, respuestaGastos] = await Promise.all([
-          apiFetch(CONFIG.ENDPOINTS.categories),
-          apiFetch(CONFIG.ENDPOINTS.transactions),
-        ]);
-
-        if (!activo) return;
-
-        const categoriasGasto = (
-          respuestaCategorias.categories ?? []
-        ).filter((item) => item.type === 'expense');
-
-        setCategories(categoriasGasto);
-
-        setExpenses(
-          (respuestaGastos.transactions ?? []).map((item) => ({
-            id: item.id,
-            name: item.description,
-            category: item.categoryName,
-            date: String(item.date).slice(0, 10),
-            amount: Number(item.amount),
-          }))
-        );
-
-        setCategory((actual) => {
-          const existe = categoriasGasto.some(
-            (item) => String(item.id) === String(actual)
-          );
-
-          return existe
-            ? actual
-            : String(categoriasGasto[0]?.id ?? '');
-        });
-      } catch (err) {
-        if (!activo) return;
-
-        if (err.status === 401) {
-          setLoggedIn(false);
-          setLoginError('Tu sesión venció. Inicia sesión nuevamente.');
-        } else {
-          setFormMessage(err.message);
-        }
-      }
-    }
-
-    cargarDatos();
-
-    return () => {
-      activo = false;
-    };
+    return () => { active = false; };
   }, [loggedIn]);
 
   if (!loggedIn) {
@@ -288,14 +289,14 @@ function App() {
           type="button"
           onClick={() => document.getElementById('expense-form')?.scrollIntoView({ behavior: 'smooth' })}
         >
-          <span>＋</span> Registrar gasto
+          <span>＋</span> Registrar movimiento
         </button>
         <button
           className="nav-item"
           type="button"
           onClick={() => document.getElementById('expense-history')?.scrollIntoView({ behavior: 'smooth' })}
         >
-          <span>↗</span> Historial de gastos
+          <span>↗</span> Historial de movimientos
         </button>
 
         <div className="sidebar-bottom">
@@ -307,6 +308,7 @@ function App() {
           <button
             className="nav-item logout-button"
             type="button"
+            disabled={busy}
             onClick={async () => {
               try {
                 await apiFetch(CONFIG.ENDPOINTS.logout, {
@@ -315,9 +317,7 @@ function App() {
               } catch (err) {
                 console.error('No se pudo cerrar la sesión en el servidor:', err);
               } finally {
-                setLoggedIn(false);
-                setExpenses([]);
-                setCategories([]);
+                resetSession();
               }
             }}
           >
@@ -345,7 +345,7 @@ function App() {
           <div>
             <span className="banner-label">UN MEJOR CONTROL EMPIEZA HOY</span>
             <h2>Hola, ¡vamos paso a paso! 🌿</h2>
-            <p>Registra tus gastos y descubre en qué estás usando tu dinero.</p>
+            <p>Registra tus ingresos y gastos para consultar tus movimientos.</p>
           </div>
           <div className="banner-art" aria-hidden="true">
             <span className="art-circle circle-one"></span>
@@ -369,8 +369,8 @@ function App() {
               <span>Número de movimientos</span>
               <span className="summary-icon movements-icon">▤</span>
             </div>
-            <strong>{expenses.length}</strong>
-            <span className="summary-caption">Gastos en tu historial</span>
+            <strong>{movements.length}</strong>
+            <span className="summary-caption">Ingresos y gastos en tu historial</span>
           </article>
 
           <article className="summary-card savings-card">
@@ -388,23 +388,51 @@ function App() {
             <div className="panel-heading">
               <div>
                 <span className="eyebrow">NUEVO MOVIMIENTO</span>
-                <h2>Registrar un gasto</h2>
+                <h2>Registrar un movimiento</h2>
               </div>
               <span className="heading-icon">＋</span>
             </div>
             <p className="panel-description">
-              Anota en qué utilizaste tu dinero para mantener tus cuentas al día.
+              Selecciona dónde entró o de dónde salió el dinero.
             </p>
 
-            <form className="expense-form" onSubmit={handleAddExpense}>
+            <form className="expense-form" onSubmit={handleAddMovement}>
+              <div className="field-row">
+                <div className="field">
+                  <label htmlFor="movement-type">Tipo</label>
+                  <select id="movement-type" value={type} disabled={busy} onChange={event => {
+                    setType(event.target.value);
+                    setCategory('');
+                    setSubcategory('');
+                    setNewSubcategoryName('');
+                  }}>
+                    <option value="expense">Gasto</option>
+                    <option value="income">Ingreso</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="movement-account">Cuenta</label>
+                  <select id="movement-account" value={account} disabled={busy} required
+                    onChange={event => setAccount(event.target.value)}>
+                    <option value="">Selecciona una cuenta</option>
+                    {accounts.map(item => (
+                      <option key={item.id} value={item.id}>{item.name} · {formatMoney.format(item.balance)}</option>
+                    ))}
+                  </select>
+                  {accounts.length === 0 && <small>Registra una cuenta para guardar movimientos.</small>}
+                </div>
+              </div>
+
               <div className="field">
-                <label htmlFor="expense-name">Nombre del gasto</label>
+                <label htmlFor="expense-name">Descripción</label>
                 <input
                   id="expense-name"
                   type="text"
-                  placeholder="Ej. Despensa, transporte..."
-                  value={expenseName}
-                  onChange={(event) => setExpenseName(event.target.value)}
+                  placeholder="Ej. Despensa, sueldo..."
+                  value={description}
+                  maxLength={255}
+                  required
+                  onChange={(event) => setDescription(event.target.value)}
                 />
               </div>
 
@@ -414,12 +442,17 @@ function App() {
                   <select
                     id="expense-category"
                     value={category}
-                    onChange={(event) => setCategory(event.target.value)}
+                    disabled={busy}
+                    onChange={event => {
+                      setCategory(event.target.value);
+                      setSubcategory('');
+                      setNewSubcategoryName('');
+                    }}
                     required
                   >
                     <option value="">Selecciona una categoría</option>
 
-                    {categories.map((item) => (
+                    {categoryOptions.map((item) => (
                       <option key={item.id} value={String(item.id)}>
                         {item.name}
                       </option>
@@ -436,6 +469,7 @@ function App() {
                       type="number"
                       min="0.01"
                       step="0.01"
+                      required
                       placeholder="0.00"
                       value={amount}
                       onChange={(event) => setAmount(event.target.value)}
@@ -445,10 +479,34 @@ function App() {
               </div>
 
               <div className="field">
-                <label htmlFor="expense-date">Fecha del gasto</label>
+                <label htmlFor="movement-subcategory">Subcategoría</label>
+                <select id="movement-subcategory" value={subcategory} required disabled={!category || busy}
+                  onChange={event => setSubcategory(event.target.value)}>
+                  <option value="">Selecciona una subcategoría</option>
+                  {subcategoryOptions.map(item => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {category && (
+                <div className="field">
+                  <label htmlFor="new-subcategory">Nueva subcategoría</label>
+                  <input id="new-subcategory" value={newSubcategoryName} maxLength={80} disabled={busy}
+                    onChange={event => setNewSubcategoryName(event.target.value)} />
+                  <button type="button" className="primary-button"
+                    disabled={busy || !newSubcategoryName.trim()} onClick={handleAddSubcategory}>
+                    {savingSubcategory ? 'Guardando...' : 'Agregar subcategoría'}
+                  </button>
+                </div>
+              )}
+
+              <div className="field">
+                <label htmlFor="expense-date">Fecha del movimiento</label>
                 <input
                   id="expense-date"
                   type="date"
+                  required
                   value={date}
                   onChange={(event) => setDate(event.target.value)}
                 />
@@ -463,10 +521,10 @@ function App() {
               <button
                 className="primary-button"
                 type="submit"
-                disabled={savingExpense}
+                disabled={busy || accounts.length === 0}
               >
                 <span>＋</span>
-                {savingExpense ? 'Guardando...' : 'Guardar gasto'}
+                {savingMovement ? 'Guardando...' : 'Guardar movimiento'}
               </button>
             </form>
           </article>
@@ -475,35 +533,35 @@ function App() {
             <div className="panel-heading">
               <div>
                 <span className="eyebrow">TUS MOVIMIENTOS</span>
-                <h2>Gastos recientes</h2>
+                <h2>Movimientos recientes</h2>
               </div>
-              <span className="history-count">{expenses.length}</span>
+              <span className="history-count">{movements.length}</span>
             </div>
             <p className="panel-description">
-              Aquí aparecen los gastos que has registrado.
+              Aquí aparecen los ingresos y gastos que has registrado.
             </p>
 
-            {expenses.length === 0 ? (
+            {movements.length === 0 ? (
               <div className="empty-state">
                 <span>▤</span>
-                <strong>Aún no hay gastos</strong>
-                <p>Registra tu primer gasto para verlo aquí.</p>
+                <strong>Aún no hay movimientos</strong>
+                <p>Registra tu primer movimiento para verlo aquí.</p>
               </div>
             ) : (
               <div className="expense-list">
-                {expenses.map((expense) => (
-                  <div className="expense-item" key={expense.id}>
+                {movements.map((movement) => (
+                  <div className="expense-item" key={movement.id}>
                     <div className="expense-category-icon">
-                      {expense.category === 'Alimentación' ? '♡' :
-                        expense.category === 'Transporte' ? '↗' :
-                        expense.category === 'Educación' ? '▤' : '✳'}
+                      {movement.categoryName === 'Alimentación' ? '♡' :
+                        movement.categoryName === 'Transporte' ? '↗' :
+                        movement.categoryName === 'Educación' ? '▤' : '✳'}
                     </div>
                     <div className="expense-details">
-                      <strong>{expense.name}</strong>
-                      <span>{expense.category} · {expense.date}</span>
+                      <strong>{movement.description}</strong>
+                      <span>{[movement.categoryName, movement.subcategoryName, movement.accountName, movement.date].filter(Boolean).join(' · ')}</span>
                     </div>
                     <strong className="expense-price">
-                      −${expense.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      {movement.type === 'income' ? '+' : '−'}{formatMoney.format(movement.amount)}
                     </strong>
                   </div>
                 ))}

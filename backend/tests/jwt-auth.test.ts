@@ -54,7 +54,6 @@ after(async () => {
     await pool.execute('DELETE FROM sessions WHERE user_id = ?', [userId]);
     await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
   }
-  await pool.end();
 });
 
 // Emisión del JWT
