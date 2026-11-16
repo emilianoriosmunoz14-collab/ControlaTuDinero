@@ -39,6 +39,8 @@ function normalizar(respuesta) {
     cantidad: Number(movimiento.amount ?? 0),
     descripcion: movimiento.description ?? '',
     categoria: movimiento.categoryName ?? '',
+    subcategoria: movimiento.subcategoryName,
+    cuenta: movimiento.accountName,
   }));
 }
 
@@ -89,6 +91,8 @@ export default function Historial() {
               <th scope="col">Tipo</th>
               <th scope="col">Descripción</th>
               <th scope="col">Categoría</th>
+              <th scope="col">Subcategoría</th>
+              <th scope="col">Cuenta</th>
               <th scope="col" className="num">Monto</th>
             </tr>
           </thead>
@@ -109,6 +113,8 @@ export default function Historial() {
 
                   <td>{movimiento.descripcion || '—'}</td>
                   <td>{movimiento.categoria || '—'}</td>
+                  <td>{movimiento.subcategoria ?? '—'}</td>
+                  <td>{movimiento.cuenta ?? '—'}</td>
 
                   <td className={`num ${esIngreso ? 'ingreso' : 'gasto'}`}>
                     {esIngreso ? '+' : '−'}
@@ -128,7 +134,7 @@ export default function Historial() {
       <header className="topbar">
         <span className="brand">ControlaTuDinero</span>
         <nav>
-          <Link to={CONFIG.ROUTES.gasto}>Registrar gasto</Link>
+          <Link to={CONFIG.ROUTES.gasto}>Registrar movimiento</Link>
         </nav>
       </header>
 

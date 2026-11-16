@@ -82,13 +82,18 @@ test('historial privado; categorias compartidas entre usuarios', async () => {
     [a.id, catId, '20.50', 'Gasto de usuario A']);
   await pool.execute(`INSERT INTO transactions
       (user_id, category_id, type, amount, date, description) VALUES (?, ?, 'expense', ?, '2026-10-27', ?)`,
-    [b.id, catB[0].id, '99.50', 'Gasto privado B']);
+    [b.id, catId, '99.50', 'Gasto privado B']);
 
   const cookie = await loginCookie(a.email, a.password);
   const result = await request(app).get('/api/transactions').set('Cookie', cookie);
   assert.equal(result.status, 200);
   assert.equal(result.body.transactions.length, 1);
-  assert.equal(result.body.transactions[0].amount, '20.50');
+  const [legacy] = result.body.transactions;
+  assert.equal(legacy.amount, '20.50');
+  assert.equal(legacy.accountId, null);
+  assert.equal(legacy.accountName, null);
+  assert.equal(legacy.subcategoryId, null);
+  assert.equal(legacy.subcategoryName, null);
   const cats = await request(app).get('/api/categories').set('Cookie', cookie);
   assert.equal(cats.status, 200);
   assert.ok(cats.body.categories.some((c: { id:number }) => c.id === catId));

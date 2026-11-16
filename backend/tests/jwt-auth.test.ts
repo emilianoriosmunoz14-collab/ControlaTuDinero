@@ -49,13 +49,15 @@ before(async () => {
   userB = await createUser();
 });
 after(async () => {
-  for (const userId of createdUsers) {
-    await pool.execute('DELETE FROM transactions WHERE user_id = ?', [userId]);
-    await pool.execute('DELETE FROM sessions WHERE user_id = ?', [userId]);
-    await pool.execute('DELETE FROM categories WHERE user_id = ?', [userId]);
-    await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
+  try {
+    for (const userId of createdUsers) {
+      await pool.execute('DELETE FROM transactions WHERE user_id = ?', [userId]);
+      await pool.execute('DELETE FROM sessions WHERE user_id = ?', [userId]);
+      await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
+    }
+  } finally {
+    await pool.end();
   }
-  await pool.end();
 });
 
 // Emisión del JWT

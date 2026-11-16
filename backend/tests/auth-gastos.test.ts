@@ -5,12 +5,20 @@ import request from 'supertest';
 import { type RowDataPacket } from 'mysql2';
 import { app } from '../src/app.js';
 import { pool } from '../src/db/pool.js';
+import { createTransaction } from '../src/repositories/transaction.repository.js';
 
 const randomPassword = () => `Aa1!${randomBytes(12).toString('hex')}`;
 const PASSWORD = randomPassword();
 const createdUsers: number[] = [];
 let userA: { id: number; email: string };
 let userB: { id: number; email: string };
+let accountId: number;
+let expenseId: number;
+let incomeId: number;
+let expenseSubcategoryId: number;
+let incomeSubcategoryId: number;
+let otherAccountId: number;
+let otherSubcategoryId: number;
 
 before(async () => {
   const [rows] = await pool.query<(RowDataPacket & { db: string })[]>('SELECT DATABASE() AS db');
@@ -19,6 +27,16 @@ before(async () => {
   }
   userA = await createUser();
   userB = await createUser();
+
+  const cookieA = await loginCookie(userA.email);
+  const cookieB = await loginCookie(userB.email);
+  expenseId = await categoryId('expense');
+  incomeId = await categoryId('income');
+  accountId = await createAccount(cookieA, 'Tanda');
+  otherAccountId = await createAccount(cookieB, 'Cuenta privada');
+  expenseSubcategoryId = await createSubcategory(cookieA, expenseId, 'Oxxo');
+  incomeSubcategoryId = await createSubcategory(cookieA, incomeId, 'Nómina');
+  otherSubcategoryId = await createSubcategory(cookieB, expenseId, 'Subcategoría privada');
 });
 after(async () => {
   for (const userId of createdUsers) {
@@ -52,8 +70,36 @@ async function categoryId(type: 'income' | 'expense') {
   );
   return rows[0].id;
 }
-const validExpense = (catId: number) => ({
-  type: 'expense', amount: '120.50', date: '2026-10-27', description: 'Comida', categoryId: catId,
+async function createAccount(cookie: string, name: string, openingBalance = '500.00'): Promise<number> {
+  const result = await request(app).post('/api/accounts').set('Cookie', cookie)
+    .send({ name, accountType: 'informal', openingBalance });
+  assert.equal(result.status, 201, JSON.stringify(result.body));
+  return result.body.account.id;
+}
+
+async function createSubcategory(cookie: string, categoryId: number, name: string): Promise<number> {
+  const result = await request(app).post('/api/subcategories').set('Cookie', cookie)
+    .send({ categoryId, name });
+  assert.equal(result.status, 201, JSON.stringify(result.body));
+  return result.body.subcategory.id;
+}
+
+async function readBalance(cookie: string, id: number) {
+  const result = await request(app).get(`/api/accounts/${id}`).set('Cookie', cookie);
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  return result.body.account.balance;
+}
+
+async function countTransactions(id: number) {
+  const [rows] = await pool.execute<(RowDataPacket & { count: number })[]>(
+    'SELECT COUNT(*) AS count FROM transactions WHERE account_id = ?', [id],
+  );
+  return rows[0].count;
+}
+
+const validExpense = (catId = expenseId) => ({
+  type: 'expense', amount: '120.50', date: '2026-10-27', description: 'Comida',
+  categoryId: catId, subcategoryId: expenseSubcategoryId, accountId,
 });
 
 test('login correcto: 200, cookie httpOnly y hash del token', async () => {
@@ -122,7 +168,8 @@ test('datos obligatorios y tipo invalidos dan 400', async () => {
     { ...base, description: '' }, { ...base, description: undefined },
     { ...base, date: '2026-02-30' }, { ...base, date: '27/10/2026' },
     { ...base, categoryId: undefined }, { ...base, categoryId: 'abc' },
-    { ...base, type: 'income' }
+    { ...base, type: 'otro' }, { ...base, accountId: undefined },
+    { ...base, accountId: true }, { ...base, subcategoryId: undefined }
   ];
   for (const body of bodies) {
     const result = await request(app).post('/api/transactions').set('Cookie', cookie).send(body);
@@ -146,6 +193,10 @@ test('gasto valido 201 y se guarda en MySQL e historial', async () => {
   assert.equal(created.status, 201, JSON.stringify(created.body));
   assert.equal(created.body.transaction.amount, '120.50');
   assert.equal(created.body.transaction.categoryId, cat);
+  assert.equal(created.body.transaction.accountId, accountId);
+  assert.equal(created.body.transaction.subcategoryId, expenseSubcategoryId);
+  assert.equal(created.body.balance, '379.50');
+  assert.equal(await readBalance(cookie, accountId), '379.50');
   const [rows] = await pool.execute<RowDataPacket[]>(
     'SELECT user_id FROM transactions WHERE id = ?', [created.body.transaction.id]
   );
@@ -168,6 +219,85 @@ test('no permite suplantar otro usuario enviando userId', async () => {
   assert.ok(historyB.body.transactions.every((t: { description: string }) =>
     t.description !== 'Intento de suplantar'));
 });
+test('un ingreso aumenta el saldo exacto de la cuenta seleccionada', async () => {
+  const cookie = await loginCookie(userA.email);
+  const id = await createAccount(cookie, 'Cuenta ingresos', '250.10');
+  const result = await request(app).post('/api/transactions').set('Cookie', cookie)
+    .send({ ...validExpense(incomeId), type: 'income', amount: '100.20', accountId: id, subcategoryId: incomeSubcategoryId });
+  assert.equal(result.status, 201, JSON.stringify(result.body));
+  assert.equal(result.body.transaction.type, 'income');
+  assert.equal(result.body.balance, '350.30');
+  assert.equal(await readBalance(cookie, id), '350.30');
+});
+
+test('cuenta ajena y subcategorías inválidas se rechazan sin registrar ni cambiar saldos', async () => {
+  const cookie = await loginCookie(userA.email);
+  const cookieB = await loginCookie(userB.email);
+  const id = await createAccount(cookie, 'Cuenta rechazos');
+  const cases = [
+    { data: { ...validExpense(), accountId: otherAccountId }, status: 404 },
+    { data: { ...validExpense(), accountId: id, subcategoryId: otherSubcategoryId }, status: 400 },
+    { data: { ...validExpense(), accountId: id, subcategoryId: incomeSubcategoryId }, status: 400 },
+    { data: { ...validExpense(), accountId: id, subcategoryId: 4_294_967_295 }, status: 400 },
+  ];
+  for (const { data, status } of cases) {
+    const result = await request(app).post('/api/transactions').set('Cookie', cookie).send(data);
+    assert.equal(result.status, status, JSON.stringify(result.body));
+  }
+  assert.equal(await countTransactions(id), 0);
+  assert.equal(await readBalance(cookie, id), '500.00');
+  assert.equal(await countTransactions(otherAccountId), 0);
+  assert.equal(await readBalance(cookieB, otherAccountId), '500.00');
+});
+
+test('saldo insuficiente conserva el saldo y deja el historial intacto', async () => {
+  const cookie = await loginCookie(userA.email);
+  const id = await createAccount(cookie, 'Cuenta saldo bajo', '10.00');
+  const result = await request(app).post('/api/transactions').set('Cookie', cookie)
+    .send({ ...validExpense(), accountId: id });
+  assert.equal(result.status, 409, JSON.stringify(result.body));
+  assert.match(result.body.message, /Saldo insuficiente/);
+  assert.equal(await readBalance(cookie, id), '10.00');
+  assert.equal(await countTransactions(id), 0);
+});
+
+test('un ingreso que rebasa el máximo conserva saldo e historial', async () => {
+  const cookie = await loginCookie(userA.email);
+  const id = await createAccount(cookie, 'Cuenta al máximo', '9999999999.99');
+  const result = await request(app).post('/api/transactions').set('Cookie', cookie)
+    .send({ ...validExpense(incomeId), type: 'income', amount: '0.01', accountId: id, subcategoryId: incomeSubcategoryId });
+  assert.equal(result.status, 409, JSON.stringify(result.body));
+  assert.equal(await readBalance(cookie, id), '9999999999.99');
+  assert.equal(await countTransactions(id), 0);
+});
+
+test('dos gastos simultáneos no pueden consumir el mismo saldo', async () => {
+  const cookie = await loginCookie(userA.email);
+  const id = await createAccount(cookie, 'Cuenta concurrencia', '100.00');
+  const body = { ...validExpense(), accountId: id, amount: '80.00' };
+  const results = await Promise.all([
+    request(app).post('/api/transactions').set('Cookie', cookie).send(body),
+    request(app).post('/api/transactions').set('Cookie', cookie).send(body),
+  ]);
+  assert.deepEqual(results.map(result => result.status).sort(), [201, 409]);
+  assert.equal(await readBalance(cookie, id), '20.00');
+  assert.equal(await countTransactions(id), 1);
+});
+
+test('una inserción rechazada revierte el ajuste de saldo', async () => {
+  const cookie = await loginCookie(userA.email);
+  const id = await createAccount(cookie, 'Cuenta rollback');
+  // Una FK puede fallar si se elimina una subcategoría entre la validación y el INSERT.
+  await assert.rejects(createTransaction({
+    ...validExpense(),
+    type: 'expense',
+    accountId: id,
+    userId: userA.id,
+    subcategoryId: 4_294_967_295,
+}), { code: /^ER_NO_REFERENCED_ROW(?:_2)?$/ });  assert.equal(await readBalance(cookie, id), '500.00');
+  assert.equal(await countTransactions(id), 0);
+});
+
 test('limite de intentos: termina en 429', async () => {
   let blocked = false;
   for (let i = 0; i < 15 && !blocked; i++) {
