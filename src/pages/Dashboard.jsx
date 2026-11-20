@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext.jsx';
 import { apiFetch } from '../api.js';
 import { CONFIG } from '../config.js';
 import '../App.css';
@@ -8,7 +9,13 @@ const today = () => new Date().toLocaleDateString('en-CA');
 
 function App() {
 
-  const [loggedIn, setLoggedIn] = useState(false);
+  const {
+  user,
+  loading: authLoading,
+  isAuthenticated,
+  login,
+  logout,
+} = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -36,43 +43,35 @@ function App() {
     (total, movement) => movement.type === 'expense' ? total + Number(movement.amount) : total,
     0,
   );
+  
+const handleLogin = async (event) => {
+  event.preventDefault();
+  setLoginError('');
 
+  if (!email.trim() || !password) {
+    setLoginError('Escribe tu correo y contraseña para continuar.');
+    return;
+  }
 
-  const handleLogin = async (event) => {
-    event.preventDefault();
-    setLoginError('');
+  setLoginLoading(true);
 
-    if (!email.trim() || !password) {
-      setLoginError('Escribe tu correo y contraseña para continuar.');
-      return;
-    }
+  try {
+    await login(email.trim().toLowerCase(), password);
 
-    setLoginLoading(true);
+    setPassword('');
+  } catch (err) {
+    setLoginError(
+      err.status === 401
+        ? 'Correo o contraseña incorrectos.'
+        : err.message
+    );
+  } finally {
+    setLoginLoading(false);
+  }
+};
 
-    try {
-      await apiFetch(CONFIG.ENDPOINTS.login, {
-        method: 'POST',
-        body: {
-          email: email.trim().toLowerCase(),
-          password,
-        },
-      });
-
-      setLoggedIn(true);
-      setPassword('');
-    } catch (err) {
-      setLoginError(
-        err.status === 401
-          ? 'Correo o contraseña incorrectos.'
-          : err.message
-      );
-    } finally {
-      setLoginLoading(false);
-    }
-  };
 
   function resetSession() {
-    setLoggedIn(false);
     setMovements([]);
     setCategories([]);
     setAccounts([]);
@@ -159,15 +158,7 @@ function App() {
   }
 
   useEffect(() => {
-    let active = true;
-    apiFetch(CONFIG.ENDPOINTS.me).then(() => {
-      if (active) setLoggedIn(true);
-    }).catch(() => {});
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    if (!loggedIn) return;
+    if (!isAuthenticated) return;
 
     let active = true;
     Promise.all([
@@ -186,9 +177,13 @@ function App() {
     });
 
     return () => { active = false; };
-  }, [loggedIn]);
+  }, [isAuthenticated]);
 
-  if (!loggedIn) {
+  if (authLoading) {
+    return <p>Verificando sesión...</p>;
+  }
+
+  if (!isAuthenticated) {
     return (
       <main className="login-page">
         <section className="login-decoration">
@@ -305,24 +300,19 @@ function App() {
             <strong>Un paso a la vez</strong>
             <p>Conocer tus gastos es el primer paso para cumplir tus metas.</p>
           </div>
+          
           <button
             className="nav-item logout-button"
             type="button"
             disabled={busy}
             onClick={async () => {
-              try {
-                await apiFetch(CONFIG.ENDPOINTS.logout, {
-                  method: 'POST',
-                });
-              } catch (err) {
-                console.error('No se pudo cerrar la sesión en el servidor:', err);
-              } finally {
-                resetSession();
-              }
+            await logout();
+            resetSession();
             }}
           >
-            <span>↩</span> Cerrar sesión
+          <span>↩</span> Cerrar sesión
           </button>
+
         </div>
       </aside>
 
@@ -335,8 +325,8 @@ function App() {
           <div className="profile">
             <div className="profile-avatar">CT</div>
             <div className="profile-copy">
-              <strong>Mi cuenta</strong>
-              <span>¡Bienvenida!</span>
+              <strong>{user?.name || 'Mi cuenta'}</strong>
+              <span>¡Bienvenido!</span>
             </div>
           </div>
         </header>
