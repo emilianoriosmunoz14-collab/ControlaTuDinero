@@ -263,3 +263,159 @@ td.num {
   font-weight: 600;
   color: var(--primary);
 }
+
+/* Pantallas de cuentas y subcategorías */
+.management-page {
+  min-height: 100vh;
+  padding: 40px;
+  background: #f5f8f6;
+  color: #263b32;
+}
+.management-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+.management-header h1 {
+  margin: 5px 0;
+  font-size: 2rem;
+}
+.management-header p {
+  color: #718078;
+}
+.management-eyebrow {
+  color: #269568 !important;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+.management-back {
+  color: #21845b;
+  text-decoration: none;
+  font-weight: 600;
+}
+.management-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(300px, 1.15fr);
+  gap: 24px;
+  align-items: start;
+}
+.management-card {
+  background: white;
+  padding: 28px;
+  border-radius: 18px;
+  box-shadow: 0 5px 20px rgba(35, 70, 52, 0.07);
+}
+.management-card h2 {
+  margin: 0 0 8px;
+}
+.management-description {
+  color: #7b8981;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+.management-card label {
+  display: block;
+  font-weight: 600;
+  margin: 17px 0 8px;
+}
+.management-card input,
+.management-card select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #dce6df;
+  border-radius: 10px;
+  background: #fbfdfb;
+  color: #263b32;
+  font: inherit;
+}
+.management-card input:focus,
+.management-card select:focus {
+  outline: 2px solid #a5d9bd;
+  border-color: #269568;
+}
+.management-card button {
+  width: 100%;
+  margin-top: 22px;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: #23875d;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+.management-card button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.management-error {
+  color: #c0392b;
+  font-size: 0.9rem;
+}
+.management-success {
+  color: #21845b;
+  font-size: 0.9rem;
+}
+.management-empty {
+  padding: 25px;
+  border-radius: 12px;
+  background: #f5f8f6;
+  color: #718078;
+  text-align: center;
+}
+.account-list {
+  display: grid;
+  gap: 12px;
+}
+.account-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 17px;
+  border: 1px solid #e6eee8;
+  border-radius: 12px;
+  background: #fbfdfb;
+}
+.account-item h3 {
+  margin: 0 0 5px;
+  font-size: 1rem;
+}
+.account-item p {
+  margin: 0;
+  color: #849087;
+  font-size: 0.88rem;
+}
+.account-item strong {
+  color: #21845b;
+  white-space: nowrap;
+}
+.subcategory-tag {
+  padding: 6px 10px;
+  border-radius: 20px;
+  background: #e9f5ed;
+  color: #21845b;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+@media (max-width: 750px) {
+  .management-page {
+    padding: 22px 15px;
+  }
+  .management-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .management-grid {
+    grid-template-columns: 1fr;
+  }
+  .management-card {
+    padding: 21px;
+  }
+}
