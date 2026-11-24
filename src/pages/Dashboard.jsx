@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { apiFetch } from '../api.js';
 import { CONFIG } from '../config.js';
@@ -8,7 +9,6 @@ const formatMoney = new Intl.NumberFormat('es-MX', { style: 'currency', currency
 const today = () => new Date().toLocaleDateString('en-CA');
 
 function App() {
-
   const {
   user,
   loading: authLoading,
@@ -16,6 +16,7 @@ function App() {
   login,
   logout,
 } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -129,13 +130,17 @@ const handleLogin = async (event) => {
       setFormMessage('Completa todos los campos para registrar el movimiento.');
       return;
     }
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+      setFormMessage('El monto debe ser mayor que cero.');
+      return;
+    }
 
     setSavingMovement(true);
     try {
       const { transaction, balance } = await apiFetch(CONFIG.ENDPOINTS.transactions, {
         method: 'POST',
         body: {
-          type, amount, date, description: description.trim(),
+          type, amount: Number(amount), date, description: description.trim(),
           categoryId: Number(category), subcategoryId: Number(subcategory), accountId: selectedAccount.id,
         },
       });
@@ -293,7 +298,20 @@ const handleLogin = async (event) => {
         >
           <span>↗</span> Historial de movimientos
         </button>
-
+        <button
+          className="nav-item"
+          type="button"
+          onClick={() => navigate('/cuentas')}
+        >
+          <span>▣</span> Mis cuentas
+        </button>
+        <button
+          className="nav-item"
+          type="button"
+          onClick={() => navigate('/subcategorias')}
+        >
+          <span>✧</span> Mis subcategorías
+        </button>
         <div className="sidebar-bottom">
           <div className="help-card">
             <span className="help-sparkle">✳</span>

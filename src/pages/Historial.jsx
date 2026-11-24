@@ -32,7 +32,9 @@ function normalizar(respuesta) {
     ? respuesta
     : respuesta?.transactions ?? [];
 
-  return lista.map((movimiento, indice) => ({
+    return [...lista]
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .map((movimiento, indice) => ({
     key: movimiento.id ?? indice,
     fecha: movimiento.date,
     tipo: movimiento.type,
@@ -80,7 +82,9 @@ export default function Historial() {
   if (movimientos === null) {
     contenido = <p>Cargando movimientos...</p>;
   } else if (movimientos.length === 0) {
-    contenido = <HistorialVacio />;
+    contenido = error
+      ? <p>No fue posible cargar tus movimientos.</p>
+      : <HistorialVacio />;
   } else {
     contenido = (
       <div className="table-wrap">
@@ -99,8 +103,7 @@ export default function Historial() {
 
           <tbody>
             {movimientos.map((movimiento) => {
-              const esIngreso = movimiento.tipo === 'income';
-
+              const esIngreso = String(movimiento.tipo).toLowerCase() === 'income';
               return (
                 <tr key={movimiento.key}>
                   <td>{fmtFecha(movimiento.fecha)}</td>

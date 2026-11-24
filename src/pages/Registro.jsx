@@ -11,7 +11,9 @@ function validar({ nombre, correo, password }) {
   const errores = {};
   if (!nombre) errores.nombre = 'Escribe tu nombre.';
   if (!EMAIL_RE.test(correo)) errores.correo = 'Escribe un correo válido.';
-  if (password.length < 8) errores.password = 'La contraseña debe tener al menos 8 caracteres.';
+  if (password.length < 8) {
+    errores.password = 'La contraseña debe tener al menos 8 caracteres.';
+  }
   return errores;
 }
 
