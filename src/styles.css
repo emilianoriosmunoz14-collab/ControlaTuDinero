@@ -419,3 +419,73 @@ td.num {
     padding: 21px;
   }
 }
+
+
+.filtros-historial {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.filtros-historial h2 {
+  margin-top: 0;
+  font-size: 18px;
+}
+
+.grid-filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.grid-filtros label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.grid-filtros input,
+.grid-filtros select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.acciones-filtros {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.acciones-filtros button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.form-edicion {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+}
+
+.form-edicion label {
+  display: block;
+  margin-bottom: 15px;
+}
+
+.form-edicion input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px;
+}

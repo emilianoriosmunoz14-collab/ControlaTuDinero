@@ -287,7 +287,6 @@ test('dos gastos simultáneos no pueden consumir el mismo saldo', async () => {
 test('una inserción rechazada revierte el ajuste de saldo', async () => {
   const cookie = await loginCookie(userA.email);
   const id = await createAccount(cookie, 'Cuenta rollback');
-  // Una FK puede fallar si se elimina una subcategoría entre la validación y el INSERT.
   await assert.rejects(createTransaction({
     ...validExpense(),
     type: 'expense',
@@ -306,4 +305,69 @@ test('limite de intentos: termina en 429', async () => {
     blocked = result.status === 429;
   }
   assert.ok(blocked);
+});
+
+
+test('editar un gasto actualiza el movimiento y ajusta el saldo', async () => {
+  const cookie = await loginCookie(userA.email);
+  const id = await createAccount(cookie, 'Cuenta editar movimiento');
+
+  const created = await request(app).post('/api/transactions')
+    .set('Cookie', cookie)
+    .send({ ...validExpense(), accountId: id });
+
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+
+  const transactionId = created.body.transaction.id;
+
+
+  assert.equal(await readBalance(cookie, id), '379.50');
+
+  const updated = await request(app).put(`/api/transactions/${transactionId}`)
+    .set('Cookie', cookie)
+    .send({
+      ...validExpense(),
+      accountId: id,
+      amount: '80.25',
+      description: 'Comida actualizada',
+    });
+
+  assert.equal(updated.status, 200, JSON.stringify(updated.body));
+
+  assert.equal(await readBalance(cookie, id), '419.75');
+  assert.equal(await countTransactions(id), 1);
+
+  const [rows] = await pool.execute<
+    (RowDataPacket & { amount: string; description: string })[]
+  >(
+    'SELECT amount, description FROM transactions WHERE id = ?',
+    [transactionId],
+  );
+
+  assert.equal(rows[0].amount, '80.25');
+  assert.equal(rows[0].description, 'Comida actualizada');
+});
+
+test('eliminar un gasto lo quita y devuelve el saldo original', async () => {
+  const cookie = await loginCookie(userA.email);
+  const id = await createAccount(cookie, 'Cuenta eliminar movimiento');
+
+  const created = await request(app).post('/api/transactions')
+    .set('Cookie', cookie)
+    .send({ ...validExpense(), accountId: id });
+
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+
+  const transactionId = created.body.transaction.id;
+
+  assert.equal(await readBalance(cookie, id), '379.50');
+  assert.equal(await countTransactions(id), 1);
+
+  const deleted = await request(app)
+    .delete(`/api/transactions/${transactionId}`)
+    .set('Cookie', cookie);
+
+  assert.equal(deleted.status, 200, JSON.stringify(deleted.body));
+  assert.equal(await readBalance(cookie, id), '500.00');
+  assert.equal(await countTransactions(id), 0);
 });
