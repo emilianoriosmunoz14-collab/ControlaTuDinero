@@ -101,3 +101,242 @@ export async function createTransaction(data: NewTransaction) {
     connection.release();
   }
 }
+
+
+interface ExistingTransactionRow extends RowDataPacket {
+  id: number;
+  account_id: number;
+  type: TransactionType;
+  amount: string;
+}
+
+function amountToCents(amount: string): bigint {
+  const [whole, decimal = ''] = amount.split('.');
+  return BigInt(whole) * 100n + BigInt(decimal.padEnd(2, '0'));
+}
+
+function centsToAmount(cents: bigint): string {
+  const negative = cents < 0n;
+  const absolute = negative ? -cents : cents;
+  const whole = absolute / 100n;
+  const decimal = String(absolute % 100n).padStart(2, '0');
+
+  return `${negative ? '-' : ''}${whole}.${decimal}`;
+}
+
+function balanceDelta(type: TransactionType, amount: string): bigint {
+  const cents = amountToCents(amount);
+  return type === 'income' ? cents : -cents;
+}
+
+async function lockAccounts(
+  connection: Awaited<ReturnType<typeof pool.getConnection>>,
+  userId: number,
+  accountIds: number[],
+): Promise<void> {
+  const ids = [...new Set(accountIds)].sort((a, b) => a - b);
+
+  for (const id of ids) {
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      'SELECT id FROM accounts WHERE id = ? AND user_id = ? FOR UPDATE',
+      [id, userId],
+    );
+
+    if (rows.length === 0) {
+      throw new TransactionError(404, 'Cuenta no encontrada');
+    }
+  }
+}
+
+async function applyBalanceDelta(
+  connection: Awaited<ReturnType<typeof pool.getConnection>>,
+  userId: number,
+  accountId: number,
+  delta: bigint,
+): Promise<void> {
+  if (delta === 0n) return;
+
+  const amount = centsToAmount(delta);
+
+  const [updated] = await connection.execute<ResultSetHeader>(
+    `UPDATE accounts
+     SET balance = balance + CAST(? AS DECIMAL(12,2))
+     WHERE id = ? AND user_id = ?
+       AND balance + CAST(? AS DECIMAL(12,2))
+       BETWEEN 0.00 AND 9999999999.99`,
+    [amount, accountId, userId, amount],
+  );
+
+  if (updated.affectedRows === 0) {
+    throw new TransactionError(
+      409,
+      'El saldo de la cuenta no permite realizar este cambio',
+    );
+  }
+}
+
+export async function updateTransaction(
+  userId: number,
+  id: number,
+  data: NewTransaction,
+) {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [transactions] = await connection.execute<ExistingTransactionRow[]>(
+      `SELECT id, account_id, type, amount
+       FROM transactions
+       WHERE id = ? AND user_id = ?
+       FOR UPDATE`,
+      [id, userId],
+    );
+
+    const previous = transactions[0];
+
+    if (!previous) {
+      throw new TransactionError(404, 'Movimiento no encontrado');
+    }
+
+    await lockAccounts(connection, userId, [
+      previous.account_id,
+      data.accountId,
+    ]);
+
+    const previousDelta = balanceDelta(
+      previous.type,
+      previous.amount,
+    );
+
+    const newDelta = balanceDelta(data.type, data.amount);
+
+    if (previous.account_id === data.accountId) {
+      await applyBalanceDelta(
+        connection,
+        userId,
+        data.accountId,
+        newDelta - previousDelta,
+      );
+    } else {
+      await applyBalanceDelta(
+        connection,
+        userId,
+        previous.account_id,
+        -previousDelta,
+      );
+
+      await applyBalanceDelta(
+        connection,
+        userId,
+        data.accountId,
+        newDelta,
+      );
+    }
+
+    await connection.execute(
+      `UPDATE transactions
+       SET category_id = ?,
+           subcategory_id = ?,
+           account_id = ?,
+           type = ?,
+           amount = ?,
+           date = ?,
+           description = ?
+       WHERE id = ? AND user_id = ?`,
+      [
+        data.categoryId,
+        data.subcategoryId,
+        data.accountId,
+        data.type,
+        data.amount,
+        data.date,
+        data.description,
+        id,
+        userId,
+      ],
+    );
+
+    const [rows] = await connection.execute<
+      (RowDataPacket & TransactionDTO & { balance: string })[]
+    >(
+      `SELECT ${transactionFields}, a.balance ${transactionTables}
+       WHERE t.id = ? AND t.user_id = ?`,
+      [id, userId],
+    );
+
+    await connection.commit();
+
+    return {
+      transaction: rows[0],
+      balance: rows[0].balance,
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function deleteTransaction(
+  userId: number,
+  id: number,
+) {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [transactions] = await connection.execute<ExistingTransactionRow[]>(
+      `SELECT id, account_id, type, amount
+       FROM transactions
+       WHERE id = ? AND user_id = ?
+       FOR UPDATE`,
+      [id, userId],
+    );
+
+    const previous = transactions[0];
+
+    if (!previous) {
+      throw new TransactionError(404, 'Movimiento no encontrado');
+    }
+
+    await lockAccounts(connection, userId, [previous.account_id]);
+
+    const previousDelta = balanceDelta(
+      previous.type,
+      previous.amount,
+    );
+
+    await applyBalanceDelta(
+      connection,
+      userId,
+      previous.account_id,
+      -previousDelta,
+    );
+
+    await connection.execute(
+      'DELETE FROM transactions WHERE id = ? AND user_id = ?',
+      [id, userId],
+    );
+
+    const [accounts] = await connection.execute<
+      (RowDataPacket & { balance: string })[]
+    >(
+      'SELECT balance FROM accounts WHERE id = ? AND user_id = ?',
+      [previous.account_id, userId],
+    );
+
+    await connection.commit();
+
+    return {
+      balance: accounts[0].balance,
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
